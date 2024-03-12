@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const { MongoClient, ServerApiVersion } = require('mongodb');
+const cors = require('cors');
 
 const URI = process.env.MONGODB_URI;
 const client = new MongoClient(URI, {
@@ -12,21 +13,11 @@ const client = new MongoClient(URI, {
 });
 
 const app = express();
-
 app.use(express.json());
+app.use(cors());
 
 app.get('/', (req, res) => {
 	res.send('Hello World');
-});
-
-app.get('/all', async (req, res) => {
-	try {
-		const database = client.db('CENGden');
-		const items = database.collection('Items');
-		const query = {};
-		const results = await items.findOne(query);
-		res.send(results);
-	} catch (error) {}
 });
 
 // user routes
@@ -38,7 +29,15 @@ app.delete('/api/users/:userId', () => {});
 
 // item routes
 app.post('/api/items', () => {});
-app.get('/api/items', () => {});
+app.get('/api/items', async (req, res) => {
+	try {
+		const database = client.db('CENGden');
+		const items = database.collection('Items');
+		const query = {};
+		const results = await items.find(query).toArray();
+		res.send(results);
+	} catch (error) {}
+});
 app.get('/api/items/:itemId', () => {});
 app.put('/api/items/:itemId', () => {});
 app.delete('/api/items/:itemId', () => {});
