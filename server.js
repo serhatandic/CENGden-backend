@@ -3,6 +3,10 @@ const express = require('express');
 const { MongoClient, ServerApiVersion } = require('mongodb');
 const cors = require('cors');
 const { ObjectId } = require('mongodb'); // at the top of your file
+const sgMail = require('@sendgrid/mail');
+sgMail.setApiKey(
+	'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'
+);
 
 const URI = process.env.MONGODB_URI;
 const client = new MongoClient(URI, {
@@ -37,7 +41,7 @@ app.post('/api/items', (req, res) => {
 		const result = items.insertOne(req.body);
 		res.send(result + ' added');
 	} catch (error) {
-		console.log(error);
+		console.error(error);
 	}
 });
 app.get('/api/items', async (req, res) => {
@@ -110,6 +114,48 @@ app.put('/api/items/user/:userId/favorites/:itemId', async (req, res) => {
 	await favorites.updateOne(query, update);
 	res.send('Item added to favorites');
 });
+app.put('/api/items/:itemId/user/:userId/favorites', async (req, res) => {
+	// add user to item's favoritedBy
+	const userId = req.params.userId;
+	const itemId = req.params.itemId;
+	const database = client.db('CENGden');
+	const favoritedBy = database.collection('FavoritedBy');
+	const query = { ItemId: itemId };
+	// if item does not have a favoritedBy array, create one
+	const itemFavoritedBy = await favoritedBy.findOne(query);
+	if (!itemFavoritedBy) {
+		await favoritedBy.insertOne({ ItemId: itemId, FavoritedBy: [userId] });
+		res.send('User added to favoritedBy');
+		return;
+	}
+	const update = { $push: { FavoritedBy: userId } };
+	await favoritedBy.updateOne(query, update);
+	res.send('User added to favoritedBy');
+});
+app.delete('/api/items/:itemId/user/:userId/favorites', async (req, res) => {
+	// remove user from item's favoritedBy
+	const userId = req.params.userId;
+	const itemId = req.params.itemId;
+	const database = client.db('CENGden');
+	const favoritedBy = database.collection('FavoritedBy');
+	const query = { ItemId: itemId };
+	const update = { $pull: { FavoritedBy: userId } };
+	await favoritedBy.updateOne(query, update);
+	res.send('User removed from favoritedBy');
+});
+app.get('/api/items/:itemId/favoritedBy', async (req, res) => {
+	// get users who favorited an item
+	const itemId = req.params.itemId;
+	const database = client.db('CENGden');
+	const favoritedBy = database.collection('FavoritedBy');
+	const query = { ItemId: itemId };
+	const result = await favoritedBy.findOne(query);
+	if (!result) {
+		res.send([]);
+		return;
+	}
+	res.send(result.FavoritedBy);
+});
 app.delete('/api/items/user/:userId/favorites/:itemId', async (req, res) => {
 	// remove item from user's favorites
 	const userId = req.params.userId;
@@ -145,6 +191,26 @@ app.delete('/api/items', async (req, res) => {
 	const items = database.collection('Items');
 	await items.deleteMany({});
 	res.send('All items deleted');
+});
+
+app.post('/api/sendmail/:to/:itemTitle', async (req, res) => {
+	const to = req.params.to;
+	const itemTitle = req.params.itemTitle;
+
+	const msg = {
+		to: to,
+		from: 'serhat.andic@ceng.metu.edu.tr',
+		subject: 'price drop',
+		text: `The price of ${itemTitle} has dropped!`,
+		html: `<strong>The price of ${itemTitle} has dropped!</strong>`,
+	};
+
+	try {
+		await sgMail.send(msg);
+		res.send('Email sent');
+	} catch (error) {
+		console.error(error);
+	}
 });
 app.patch('/api/items/:itemId/deactivate', () => {});
 app.patch('/api/items/:itemId/reactivate', () => {});
