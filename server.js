@@ -18,7 +18,11 @@ const client = new MongoClient(URI, {
 });
 
 const app = express();
-app.use(express.json());
+app.use(
+	express.json({
+		limit: '50mb',
+	})
+);
 app.use(cors());
 
 app.get('/', (req, res) => {
@@ -29,7 +33,6 @@ app.post('/api/items', (req, res) => {
 	try {
 		const database = client.db('CENGden');
 		const items = database.collection('Items');
-		// insert 100 times
 		const result = items.insertOne(req.body);
 		res.send(result + ' added');
 	} catch (error) {
@@ -73,7 +76,7 @@ app.get('/api/item/:itemId', async (req, res) => {
 	const items = database.collection('Items');
 	const query = { _id: new ObjectId(id) };
 	const result = await items.findOne(query);
-	res.send(result);
+	res.json({ result: result });
 });
 app.get('/api/items/user/:userId/favorites', async (req, res) => {
 	// get user's favorite items
