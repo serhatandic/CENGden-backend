@@ -169,6 +169,14 @@ app.put('/api/item/:itemId', async (req, res) => {
 	const items = database.collection('Items');
 	const query = { _id: new ObjectId(id) };
 	delete req.body._id;
+	// itreate over req.body and remove empty strings
+	if (req.body['Attributes']) {
+		Object.keys(req.body['Attributes']).forEach((key) => {
+			if (req.body['Attributes'][key] === '') {
+				delete req.body['Attributes'][key];
+			}
+		});
+	}
 	const update = { $set: req.body };
 	await items.updateOne(query, update);
 	res.send('Item updated');
