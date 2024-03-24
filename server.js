@@ -216,6 +216,63 @@ app.post('/api/sendmail/:to/:itemTitle', async (req, res) => {
 	}
 });
 
+app.get('/api/user/:userId/isPublic', async (req, res) => {
+	const userId = req.params.userId;
+	const database = client.db('CENGden');
+	const users = database.collection('UserDetails');
+	const query = { OwnerId: userId };
+	const result = await users.findOne(query);
+	if (!result) {
+		res.send(false);
+		return;
+	}
+	res.send(result.IsPublic);
+});
+
+app.post('/api/user/:userId/isPublic', async (req, res) => {
+	const userId = req.params.userId;
+	const database = client.db('CENGden');
+	const users = database.collection('UserDetails');
+	const query = { OwnerId: userId };
+	// if no user details found, create one
+	const user = await users.findOne(query);
+	if (!user) {
+		await users.insertOne({ OwnerId: userId, IsPublic: req.body.IsPublic });
+		res.send('User privacy settings updated');
+		return;
+	}
+	const update = { $set: { IsPublic: req.body.IsPublic } };
+	await users.updateOne(query, update);
+	res.send('User privacy settings updated');
+});
+
+app.delete('/api/user/:userId', async (req, res) => {
+	// delete this user from every collection
+	const userId = req.params.userId;
+	const database = client.db('CENGden');
+	const items = database.collection('Items');
+	const favorites = database.collection('UserFavorites');
+	const favoritedBy = database.collection('FavoritedBy');
+	const userDetails = database.collection('UserDetails');
+	const queryItems = { Owner: userId };
+	const queryFavorites = { UserId: userId };
+	const queryFavoritedBy = { FavoritedBy: userId };
+	const queryUserDetails = { OwnerId: userId };
+
+	await items.deleteMany(queryItems);
+	await favorites.deleteMany(queryFavorites);
+	await userDetails.deleteMany(queryUserDetails);
+	// for favorited by get all the items. Iterate over their FavoritedBy arrays, remove userId from them and update the document
+	const itemsOfUser = await favoritedBy.find(queryFavoritedBy).toArray();
+	itemsOfUser.forEach(async (item) => {
+		const query = { ItemId: item.ItemId };
+		const update = { $pull: { FavoritedBy: userId } };
+		await favoritedBy.updateOne(query, update);
+	});
+
+	res.send('User deleted');
+});
+
 app.listen(3000, () => {
 	console.log('Server is running on port 3000');
 });
